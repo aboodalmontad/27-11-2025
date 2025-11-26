@@ -141,7 +141,7 @@ const Navbar: React.FC<{
                     <div className="flex flex-col items-start sm:flex-row sm:items-baseline gap-0 sm:gap-2">
                         <h1 className="text-xl font-bold text-gray-800">مكتب المحامي</h1>
                         <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <span>الإصدار: 27-11-2025-2</span>
+                            <span>الإصدار: 27-11-2025-4</span>
                             {profile && (
                                 <>
                                     <span className="mx-1 text-gray-300">|</span>
@@ -329,15 +329,18 @@ const App: React.FC<AppProps> = ({ onRefresh }) => {
         const { data: { subscription } } = supabase!.auth.onAuthStateChange((event, newSession) => {
             if (event === 'SIGNED_OUT') {
                 setSession(null);
+                setIsAuthLoading(false);
                 localStorage.removeItem(LAST_USER_CACHE_KEY);
                 localStorage.removeItem(LAST_USER_CREDENTIALS_CACHE_KEY);
                 localStorage.setItem('lawyerAppLoggedOut', 'true');
             } else if (newSession) {
                 setSession(newSession);
+                setIsAuthLoading(false);
                 localStorage.setItem(LAST_USER_CACHE_KEY, JSON.stringify(newSession.user));
                 localStorage.removeItem('lawyerAppLoggedOut');
+            } else {
+                setIsAuthLoading(false);
             }
-            setIsAuthLoading(false);
         });
         
         // Initial Session Check Logic
@@ -447,7 +450,7 @@ const App: React.FC<AppProps> = ({ onRefresh }) => {
     
     const handleLogout = async () => {
         try {
-            // Clear storage first to prevent re-login loops on weak connections
+            // 1. Clear storage first
             localStorage.removeItem(LAST_USER_CACHE_KEY);
             localStorage.removeItem(LAST_USER_CREDENTIALS_CACHE_KEY);
             // Clear Supabase internal keys
@@ -455,12 +458,17 @@ const App: React.FC<AppProps> = ({ onRefresh }) => {
                 if (key.startsWith('sb-')) localStorage.removeItem(key);
             });
             
+            // 2. Immediately update state to show Login Page and hide Loader
+            setSession(null);
+            setIsAuthLoading(false);
+
+            // 3. Try to sign out from Supabase (if online)
             await supabase!.auth.signOut();
         } catch (error) {
-            console.warn("Logout network failed, clearing local state anyway:", error);
+            console.warn("Logout network failed, state cleared anyway:", error);
         } finally {
-            // Force a hard reload to clear any in-memory state
-            window.location.reload();
+            // 4. Force redirection to root path to avoid "Moved/Deleted" errors on sub-routes
+            window.location.href = '/';
         }
     };
     

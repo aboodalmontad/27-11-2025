@@ -33,6 +33,7 @@ const AdminPage: React.FC = () => {
     const [userToDelete, setUserToDelete] = React.useState<Profile | null>(null);
     const [viewingUser, setViewingUser] = React.useState<Profile | null>(null);
     const [generatingOtpFor, setGeneratingOtpFor] = React.useState<string | null>(null);
+    const [copiedOtpId, setCopiedOtpId] = React.useState<string | null>(null);
     const currentAdminId = userId;
     
     const supabase = getSupabaseClient();
@@ -106,6 +107,14 @@ const AdminPage: React.FC = () => {
             setGeneratingOtpFor(null);
         }
     };
+
+    const copyToClipboard = (text: string, id: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            setCopiedOtpId(id);
+            setTimeout(() => setCopiedOtpId(null), 2000);
+        });
+    };
     
     const sortedUsers = React.useMemo(() => {
         return [...users].sort((a, b) => {
@@ -162,12 +171,12 @@ const AdminPage: React.FC = () => {
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         {user.mobile_verified ? (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
                                                 تم التحقق
                                             </span>
                                         ) : (
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-2 w-full max-w-[140px]">
+                                                <div className="flex items-center justify-between gap-2">
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                                         غير مؤكد
                                                     </span>
@@ -182,15 +191,21 @@ const AdminPage: React.FC = () => {
                                                         </button>
                                                     )}
                                                 </div>
-                                                {user.otp_code && (
-                                                    <div 
-                                                        className="text-xs text-gray-600 font-mono bg-gray-50 border border-gray-200 rounded px-1 py-0.5 text-center select-all cursor-copy" 
-                                                        title="انسخ الكود"
-                                                        onClick={() => navigator.clipboard.writeText(user.otp_code || '')}
-                                                    >
-                                                        كود: {user.otp_code}
-                                                    </div>
-                                                )}
+                                                <div 
+                                                    className={`flex items-center justify-center gap-2 text-xs font-bold border rounded-md px-2 py-1.5 cursor-pointer transition-all ${user.otp_code ? 'text-blue-700 bg-blue-50 border-blue-300 hover:bg-blue-100' : 'text-gray-400 bg-gray-50 border-gray-200'}`}
+                                                    title={user.otp_code ? "نسخ الكود" : "لا يوجد كود نشط"}
+                                                    onClick={() => user.otp_code && copyToClipboard(user.otp_code, user.id)}
+                                                >
+                                                    {user.otp_code ? (
+                                                        <>
+                                                            <span className="font-mono text-sm tracking-wider">{user.otp_code}</span>
+                                                            <ClipboardDocumentIcon className="w-3 h-3 text-blue-500" />
+                                                        </>
+                                                    ) : (
+                                                        <span>- - - - - -</span>
+                                                    )}
+                                                </div>
+                                                {copiedOtpId === user.id && <span className="text-[10px] text-green-600 text-center font-bold">تم النسخ!</span>}
                                             </div>
                                         )}
                                     </div>
