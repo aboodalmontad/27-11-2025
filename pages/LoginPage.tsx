@@ -488,7 +488,7 @@ const LoginPage: React.FC<AuthPageProps> = ({ onForceSetup, onLoginSuccess, init
                 <div className="mt-4 flex flex-col items-center">
                     <p className="text-center text-xs text-gray-500">كافة الحقوق محفوظة لشركة الحلول الرقمية Digital Solutions</p>
                     <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-gray-400">الإصدار: 27-11-2025-Fixed2</p>
+                        <p className="text-xs text-gray-400">الإصدار: 27-11-2025-2</p>
                         <button onClick={onForceSetup} className="text-xs text-gray-300 hover:text-gray-500" title="إعداد النظام">
                             <DatabaseIcon className="w-3 h-3" />
                         </button>
