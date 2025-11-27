@@ -1,5 +1,6 @@
+
 import * as React from 'react';
-import { TrashIcon, ExclamationTriangleIcon, CloudArrowUpIcon, ArrowPathIcon, PlusIcon, CheckCircleIcon, XCircleIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, ShieldCheckIcon } from '../components/icons';
+import { TrashIcon, ExclamationTriangleIcon, CloudArrowUpIcon, ArrowPathIcon, PlusIcon, CheckCircleIcon, XCircleIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, ShieldCheckIcon, PencilIcon } from '../components/icons';
 import { Client, AdminTask, Appointment, AccountingEntry } from '../types';
 import { APP_DATA_KEY } from '../hooks/useSupabaseData';
 import { useData } from '../context/DataContext';
@@ -8,7 +9,7 @@ import { openDB } from 'idb';
 interface SettingsPageProps {}
 
 const SettingsPage: React.FC<SettingsPageProps> = () => {
-    const { setFullData, assistants, setAssistants, userId, isAutoSyncEnabled, setAutoSyncEnabled, isAutoBackupEnabled, setAutoBackupEnabled, adminTasksLayout, setAdminTasksLayout, deleteAssistant, exportData } = useData();
+    const { setFullData, assistants, setAssistants, userId, isAutoSyncEnabled, setAutoSyncEnabled, isAutoBackupEnabled, setAutoBackupEnabled, adminTasksLayout, setAdminTasksLayout, deleteAssistant, editAssistant, exportData } = useData();
     const [feedback, setFeedback] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = React.useState(false);
     const [isDeleteAssistantModalOpen, setIsDeleteAssistantModalOpen] = React.useState(false);
@@ -16,6 +17,10 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
     const [newAssistant, setNewAssistant] = React.useState('');
     const [dbStats, setDbStats] = React.useState<string | null>(null);
     
+    // State for editing assistant
+    const [isEditAssistantModalOpen, setIsEditAssistantModalOpen] = React.useState(false);
+    const [editingAssistantOldName, setEditingAssistantOldName] = React.useState<string | null>(null);
+    const [editingAssistantNewName, setEditingAssistantNewName] = React.useState('');
 
     const showFeedback = (message: string, type: 'success' | 'error') => {
         setFeedback({ message, type });
@@ -92,6 +97,39 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
         setIsDeleteAssistantModalOpen(false);
         setAssistantToDelete(null);
     };
+    
+    // --- Edit Assistant Logic ---
+    const handleEditAssistant = (name: string) => {
+        if (name !== 'بدون تخصيص') {
+            setEditingAssistantOldName(name);
+            setEditingAssistantNewName(name);
+            setIsEditAssistantModalOpen(true);
+        }
+    };
+
+    const handleSaveEditedAssistant = () => {
+        if (editingAssistantOldName && editingAssistantNewName && editingAssistantNewName.trim() !== '') {
+            const newName = editingAssistantNewName.trim();
+            if (newName === editingAssistantOldName) {
+                setIsEditAssistantModalOpen(false);
+                return;
+            }
+            
+            if (assistants.includes(newName)) {
+                showFeedback(`المساعد "${newName}" موجود بالفعل.`, 'error');
+                return;
+            }
+
+            if (editAssistant) {
+                editAssistant(editingAssistantOldName, newName);
+                showFeedback(`تم تعديل المساعد إلى "${newName}" وتحديث المهام المرتبطة.`, 'success');
+            }
+        }
+        setIsEditAssistantModalOpen(false);
+        setEditingAssistantOldName(null);
+        setEditingAssistantNewName('');
+    };
+
     
     const handleInspectDb = async () => {
         setDbStats('جاري الفحص...');
@@ -270,9 +308,14 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
                                 <li key={assistant} className="flex justify-between items-center p-3 bg-gray-50 rounded-md border">
                                     <span className="font-medium">{assistant}</span>
                                     {assistant !== 'بدون تخصيص' && (
-                                        <button onClick={() => handleDeleteAssistant(assistant)} className="p-1 text-red-500 rounded-full hover:bg-red-100" aria-label={`حذف ${assistant}`}>
-                                            <TrashIcon className="w-5 h-5" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => handleEditAssistant(assistant)} className="p-1 text-blue-500 rounded-full hover:bg-blue-100" aria-label={`تعديل ${assistant}`}>
+                                                <PencilIcon className="w-5 h-5" />
+                                            </button>
+                                            <button onClick={() => handleDeleteAssistant(assistant)} className="p-1 text-red-500 rounded-full hover:bg-red-100" aria-label={`حذف ${assistant}`}>
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
+                                        </div>
                                     )}
                                 </li>
                             ))}
@@ -368,6 +411,54 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
                                 onClick={handleConfirmDeleteAssistant}
                             >
                                 نعم، قم بالحذف
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isEditAssistantModalOpen && editingAssistantOldName && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 no-print p-4 overflow-y-auto" onClick={() => setIsEditAssistantModalOpen(false)}>
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="text-center mb-6">
+                            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                                <PencilIcon className="h-8 w-8 text-blue-600" aria-hidden="true" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900">
+                                تعديل اسم المساعد
+                            </h3>
+                            <p className="text-gray-600 mt-2 text-sm">
+                                سيتم تحديث اسم المساعد في جميع المهام والجلسات والمواعيد المرتبطة به.
+                            </p>
+                        </div>
+                        
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">الاسم الجديد</label>
+                            <input 
+                                type="text" 
+                                value={editingAssistantNewName}
+                                onChange={(e) => setEditingAssistantNewName(e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="أدخل الاسم الجديد"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="flex justify-center gap-4">
+                            <button
+                                type="button"
+                                className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                                onClick={() => setIsEditAssistantModalOpen(false)}
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                type="button"
+                                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                                onClick={handleSaveEditedAssistant}
+                                disabled={!editingAssistantNewName.trim()}
+                            >
+                                حفظ التغييرات
                             </button>
                         </div>
                     </div>
