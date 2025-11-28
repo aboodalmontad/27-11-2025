@@ -4,9 +4,7 @@ import { AppData, DeletedIds } from '../types';
 
 // This is the return type of the useSupabaseData hook.
 // It's defined here to be used as the context's type.
-export type IDataContext = ReturnType<typeof useSupabaseData> & {
-    editAssistant?: (oldName: string, newName: string) => void;
-};
+export type IDataContext = ReturnType<typeof useSupabaseData>;
 
 // Create the context with a placeholder/null value.
 // The actual value will be provided by the DataProvider in App.tsx.

@@ -892,47 +892,6 @@ export const useSupabaseData = (user: User | null, isAuthLoading: boolean) => {
         updateData(p => ({...p, assistants: p.assistants.filter(a => a !== name)})); 
         createDeleteFunction('assistants')(name); 
     };
-    const editAssistant = (oldName: string, newName: string) => {
-        if (!newName || newName.trim() === '' || oldName === newName) return;
-        
-        updateData(prev => {
-            // 1. Update the list of assistants
-            const newAssistants = prev.assistants.map(a => a === oldName ? newName : a);
-            
-            // 2. Cascade update to clients (sessions)
-            const updatedClients = prev.clients.map(c => ({
-                ...c,
-                updated_at: new Date(),
-                cases: c.cases.map(cs => ({
-                    ...cs,
-                    updated_at: new Date(),
-                    stages: cs.stages.map(s => ({
-                        ...s,
-                        updated_at: new Date(),
-                        sessions: s.sessions.map(sess => sess.assignee === oldName ? { ...sess, assignee: newName, updated_at: new Date() } : sess)
-                    }))
-                }))
-            }));
-
-            // 3. Cascade update to adminTasks
-            const updatedTasks = prev.adminTasks.map(t => t.assignee === oldName ? { ...t, assignee: newName, updated_at: new Date() } : t);
-            
-            // 4. Cascade update to appointments
-            const updatedAppts = prev.appointments.map(a => a.assignee === oldName ? { ...a, assignee: newName, updated_at: new Date() } : a);
-
-            return {
-                ...prev,
-                assistants: newAssistants,
-                clients: updatedClients,
-                adminTasks: updatedTasks,
-                appointments: updatedAppts
-            };
-        });
-
-        // Mark the old name for deletion in the DB so that the sync process removes the old record and inserts the new one.
-        createDeleteFunction('assistants')(oldName);
-    };
-
     const deleteDocument = async (doc: CaseDocument) => {
         const db = await getDb();
         await db.delete(DOCS_FILES_STORE_NAME, doc.id);
@@ -1061,7 +1020,6 @@ export const useSupabaseData = (user: User | null, isAuthLoading: boolean) => {
         getDocumentFile,
         postponeSession,
         showUnpostponedSessionsModal,
-        setShowUnpostponedSessionsModal,
-        editAssistant
+        setShowUnpostponedSessionsModal
     };
 };

@@ -1,6 +1,6 @@
 
 import * as React from 'react';
-import { ClipboardDocumentCheckIcon, ClipboardDocumentIcon, ExclamationTriangleIcon, ServerIcon, ShieldCheckIcon } from './icons';
+import { ClipboardDocumentCheckIcon, ClipboardDocumentIcon, ServerIcon, ShieldCheckIcon, ExclamationTriangleIcon } from './icons';
 
 // Helper component for copying text (Internal)
 const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
@@ -12,22 +12,22 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
         });
     };
     return (
-        <button type="button" onClick={handleCopy} className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-colors" title="نسخ الكود">
-            {copied ? <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-            {copied ? 'تم النسخ' : 'نسخ'}
+        <button type="button" onClick={handleCopy} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors shadow-sm" title="نسخ الكود">
+            {copied ? <ClipboardDocumentCheckIcon className="w-4 h-4 text-white" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+            {copied ? 'تم النسخ!' : 'نسخ كود SQL'}
         </button>
     );
 };
 
 const unifiedScript = `
 -- =================================================================
--- السكربت الشامل (الإعداد الكامل - ينشئ الجداول إذا لم تكن موجودة)
+-- السكربت الشامل لإصلاح وإعداد قاعدة البيانات (Supabase) - النسخة الآمنة
+-- تعليمات: انسخ هذا الكود بالكامل والصقه في SQL Editor ثم اضغط Run
 -- =================================================================
 
--- 1. FUNCTIONS & TRIGGERS
+-- 1. الدوال والمشغلات (Functions & Triggers)
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
+-- دالة للتحقق مما إذا كان المستخدم مديراً (Admin)
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean AS $$
 DECLARE
@@ -38,6 +38,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
+-- دالة لحذف حساب المستخدم نفسه
 CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void AS $$
 BEGIN
@@ -46,6 +47,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
 
+-- دالة لحذف مستخدم (للمدراء فقط)
 CREATE OR REPLACE FUNCTION public.delete_user(user_id_to_delete uuid)
 RETURNS void AS $$
 BEGIN
@@ -60,6 +62,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 GRANT EXECUTE ON FUNCTION public.delete_user(user_id_to_delete uuid) TO authenticated;
 
+-- دالة التحقق من وجود رقم الجوال
 CREATE OR REPLACE FUNCTION public.check_if_mobile_exists(mobile_to_check text)
 RETURNS boolean AS $$
 DECLARE
@@ -71,19 +74,18 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 GRANT EXECUTE ON FUNCTION public.check_if_mobile_exists(text) TO anon, authenticated;
 
--- Function to generate OTP (Admin or System calls this)
+-- دالة توليد كود التحقق (OTP)
 CREATE OR REPLACE FUNCTION public.generate_mobile_otp(target_user_id uuid)
 RETURNS text AS $$
 DECLARE
     new_otp text;
 BEGIN
-    -- Generate a random 6-digit code
     new_otp := floor(random() * (999999 - 100000 + 1) + 100000)::text;
     
     UPDATE public.profiles 
     SET 
         otp_code = new_otp,
-        otp_expires_at = NULL -- VALID FOREVER (NO EXPIRATION)
+        otp_expires_at = NULL 
     WHERE id = target_user_id;
     
     RETURN new_otp;
@@ -91,7 +93,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 GRANT EXECUTE ON FUNCTION public.generate_mobile_otp(uuid) TO anon, authenticated;
 
--- Function to verify OTP (User calls this)
+-- دالة التحقق من كود الـ OTP
 CREATE OR REPLACE FUNCTION public.verify_mobile_otp(target_mobile text, code_to_check text)
 RETURNS boolean AS $$
 DECLARE
@@ -107,7 +109,6 @@ BEGIN
         RAISE EXCEPTION 'No OTP found.';
     END IF;
 
-    -- Check if OTP matches (No time check needed as it is valid forever)
     IF profile_record.otp_code = code_to_check THEN
         UPDATE public.profiles 
         SET 
@@ -123,20 +124,17 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 GRANT EXECUTE ON FUNCTION public.verify_mobile_otp(text, text) TO anon, authenticated;
 
-
+-- دالة التعامل مع المستخدم الجديد (Trigger)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
     raw_mobile TEXT;
     normalized_mobile TEXT;
 BEGIN
-    -- Get mobile from metadata
     raw_mobile := new.raw_user_meta_data->>'mobile_number';
 
-    -- Normalize the mobile number to '09xxxxxxxx' format
     IF raw_mobile IS NOT NULL AND raw_mobile != '' THEN
-        -- Remove non-digits and get the last 9 digits, then prepend '0'
-        normalized_mobile := '0' || RIGHT(regexp_replace(raw_mobile, '\D', '', 'g'), 9);
+        normalized_mobile := '0' || RIGHT(regexp_replace(raw_mobile, '\\D', '', 'g'), 9);
     ELSE
         normalized_mobile := '0' || regexp_replace(new.email, '^sy963|@email\\.com$', '', 'g');
     END IF;
@@ -144,7 +142,7 @@ BEGIN
     INSERT INTO public.profiles (id, full_name, mobile_number, created_at, mobile_verified)
     VALUES (
       new.id,
-      new.raw_user_meta_data->>'full_name',
+      COALESCE(new.raw_user_meta_data->>'full_name', 'مستخدم جديد'),
       normalized_mobile,
       new.created_at,
       false 
@@ -159,12 +157,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
+-- إعادة إنشاء التريجر لضمان عمله
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 
--- 2. TABLE & SCHEMA CREATION / MIGRATION (Non-Destructive)
+-- 2. إنشاء وتحديث الجداول (Tables & Columns)
 
 CREATE TABLE IF NOT EXISTS public.profiles (id uuid NOT NULL PRIMARY KEY);
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
@@ -290,6 +290,7 @@ ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS amount real NOT NULL;
 ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS payment_method text;
 ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS profile_full_name text;
 ALTER TABLE public.site_finances ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
 CREATE TABLE IF NOT EXISTS public.case_documents (id text NOT NULL PRIMARY KEY);
@@ -302,9 +303,10 @@ ALTER TABLE public.case_documents ADD COLUMN IF NOT EXISTS added_at timestamptz 
 ALTER TABLE public.case_documents ADD COLUMN IF NOT EXISTS storage_path text;
 ALTER TABLE public.case_documents ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
--- 3. CONSTRAINTS (Non-Destructive)
+-- 3. القيود (Constraints)
 DO $$
 BEGIN
+    -- إضافة القيود إذا لم تكن موجودة
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_id_fkey') THEN
         ALTER TABLE public.profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_mobile_number_key') THEN
@@ -364,7 +366,7 @@ BEGIN
 END $$;
 
 
--- 4. SECURITY: RLS POLICIES
+-- 4. سياسات الأمان (RLS Policies)
 DO $$
 DECLARE
     r RECORD;
@@ -449,103 +451,51 @@ CREATE POLICY "Users can insert own documents" ON public.case_documents FOR INSE
 CREATE POLICY "Users can update own documents" ON public.case_documents FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own documents" ON public.case_documents FOR DELETE USING (auth.uid() = user_id);
 
--- 5. REALTIME
-ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.clients;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.cases;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.sessions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.admin_tasks;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.accounting_entries;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.assistants;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.invoice_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.site_finances;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.case_documents;
+-- 5. تفعيل التحديث المباشر (Realtime)
+DO $$
+DECLARE
+    t text;
+    target_tables text[] := ARRAY[
+        'public.profiles', 'public.clients', 'public.cases', 
+        'public.stages', 'public.sessions', 'public.admin_tasks', 
+        'public.appointments', 'public.accounting_entries', 
+        'public.assistants', 'public.invoices', 'public.invoice_items', 
+        'public.site_finances', 'public.case_documents'
+    ];
+BEGIN
+    FOR t IN SELECT unnest(target_tables) LOOP
+        BEGIN
+            EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE ' || t;
+        EXCEPTION WHEN duplicate_object THEN
+            NULL; -- تجاهل الخطأ إذا كان الجدول مضافاً بالفعل
+        END;
+    END LOOP;
+END $$;
 
--- 6. STORAGE BUCKET (Idempotent)
+-- 6. إعداد سلة التخزين (Storage Bucket)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('documents', 'documents', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Give users access to own folder" ON storage.objects FOR ALL USING (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]) WITH CHECK (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]);
-`;
+-- تنبيه: تم تعطيل هذا القسم لتجنب أخطاء الصلاحيات (Error 42501).
+-- إذا كنت تواجه مشاكل في رفع الملفات، يرجى إعداد سياسات التخزين يدوياً من لوحة تحكم Supabase.
+-- DROP POLICY IF EXISTS "Give users access to own folder" ON storage.objects;
+-- CREATE POLICY "Give users access to own folder" ON storage.objects FOR ALL USING (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]) WITH CHECK (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]);
 
-const mobileVerificationScript = `
--- =================================================================
--- سكربت تأكيد الجوال (Mobile Verification Script)
--- استخدم هذا السكربت لتحديث قاعدة البيانات لدعم ميزة الـ OTP
--- =================================================================
+-- 7. إصلاح البيانات المفقودة (Backfill) - هام جداً
+-- هذا الجزء يضمن وجود ملف شخصي لكل مستخدم مسجل في auth.users
+INSERT INTO public.profiles (id, full_name, mobile_number, role, is_approved, is_active, mobile_verified)
+SELECT 
+    au.id,
+    COALESCE(au.raw_user_meta_data->>'full_name', 'مستخدم'),
+    COALESCE(au.raw_user_meta_data->>'mobile_number', ''),
+    'admin', -- جعل المستخدمين الحاليين مدراء لضمان الدخول
+    true,    -- تفعيل الحساب فوراً
+    true,    -- نشط
+    true     -- تم التحقق من الجوال
+FROM auth.users au
+WHERE au.id NOT IN (SELECT id FROM public.profiles);
 
--- 1. إضافة الأعمدة الجديدة لجدول الملفات الشخصية (profiles)
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS mobile_verified boolean DEFAULT false;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS otp_code text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS otp_expires_at timestamptz;
-
--- 2. دالة التحقق من وجود الرقم (للتأكد قبل التسجيل)
-CREATE OR REPLACE FUNCTION public.check_if_mobile_exists(mobile_to_check text)
-RETURNS boolean AS $$
-DECLARE
-    mobile_exists boolean;
-BEGIN
-    SELECT EXISTS(SELECT 1 FROM public.profiles WHERE mobile_number = mobile_to_check) INTO mobile_exists;
-    RETURN mobile_exists;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-GRANT EXECUTE ON FUNCTION public.check_if_mobile_exists(text) TO anon, authenticated;
-
--- 3. دالة توليد كود التحقق (يستخدمها المدير أو النظام)
-CREATE OR REPLACE FUNCTION public.generate_mobile_otp(target_user_id uuid)
-RETURNS text AS $$
-DECLARE
-    new_otp text;
-BEGIN
-    -- توليد كود عشوائي من 6 أرقام
-    new_otp := floor(random() * (999999 - 100000 + 1) + 100000)::text;
-    
-    UPDATE public.profiles 
-    SET 
-        otp_code = new_otp,
-        otp_expires_at = NULL -- صلاحية مفتوحة (لا تنتهي)
-    WHERE id = target_user_id;
-    
-    RETURN new_otp;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-GRANT EXECUTE ON FUNCTION public.generate_mobile_otp(uuid) TO anon, authenticated;
-
--- 4. دالة التحقق من الكود (يستخدمها المستخدم)
-CREATE OR REPLACE FUNCTION public.verify_mobile_otp(target_mobile text, code_to_check text)
-RETURNS boolean AS $$
-DECLARE
-    profile_record record;
-BEGIN
-    SELECT * INTO profile_record FROM public.profiles WHERE mobile_number = target_mobile;
-    
-    IF profile_record IS NULL THEN
-        RAISE EXCEPTION 'User not found.';
-    END IF;
-
-    IF profile_record.otp_code IS NULL THEN
-        RAISE EXCEPTION 'No OTP found.';
-    END IF;
-
-    -- التحقق من صحة الكود (تمت إزالة التحقق من الوقت لجعل الصلاحية مفتوحة)
-    IF profile_record.otp_code = code_to_check THEN
-        UPDATE public.profiles 
-        SET 
-            mobile_verified = true,
-            otp_code = null,
-            otp_expires_at = null
-        WHERE id = profile_record.id;
-        RETURN true;
-    ELSE
-        RETURN false;
-    END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-GRANT EXECUTE ON FUNCTION public.verify_mobile_otp(text, text) TO anon, authenticated;
 `;
 
 interface ConfigurationModalProps {
@@ -553,83 +503,76 @@ interface ConfigurationModalProps {
 }
 
 const ConfigurationModal: React.FC<ConfigurationModalProps> = ({ onRetry }) => {
-    const [activeTab, setActiveTab] = React.useState<'full' | 'mobile'>('full');
-
     return (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
-                <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50 rounded-t-lg">
-                    <div className="flex items-center gap-3 text-red-600">
-                        <ExclamationTriangleIcon className="w-8 h-8" />
-                        <h2 className="text-xl font-bold">معالج إعداد قاعدة البيانات</h2>
-                    </div>
-                    <button 
-                        onClick={onRetry}
-                        className="text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                        إغلاق
-                    </button>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[200]">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center gap-3 mb-4 text-amber-600">
+                    <ServerIcon className="w-8 h-8" />
+                    <h2 className="text-2xl font-bold">تهيئة قاعدة البيانات</h2>
                 </div>
                 
-                <div className="p-6 overflow-y-auto space-y-6">
-                    <div className="flex border-b border-gray-200 mb-4">
-                        <button
-                            className={`px-4 py-2 font-medium text-sm focus:outline-none ${activeTab === 'full' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                            onClick={() => setActiveTab('full')}
-                        >
-                            الإعداد الكامل / إصلاح الأخطاء
-                        </button>
-                        <button
-                            className={`px-4 py-2 font-medium text-sm focus:outline-none ${activeTab === 'mobile' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                            onClick={() => setActiveTab('mobile')}
-                        >
-                            سكربت تأكيد الجوال (جديد)
-                        </button>
-                    </div>
-
-                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md">
-                        <div className="flex items-start">
+                <div className="overflow-y-auto flex-grow pr-2">
+                    <div className="bg-amber-50 border-s-4 border-amber-500 p-4 mb-4 rounded">
+                        <div className="flex">
                             <div className="flex-shrink-0">
-                                <ServerIcon className="h-5 w-5 text-blue-400" />
+                                <ExclamationTriangleIcon className="h-5 w-5 text-amber-400" aria-hidden="true" />
                             </div>
                             <div className="ms-3">
-                                <p className="text-sm text-blue-700">
-                                    {activeTab === 'full' 
-                                        ? "هذا السكربت يقوم بإنشاء أو تحديث جميع الجداول، الدوال، وسياسات الأمان المطلوبة لتشغيل التطبيق. إنه آمن للتنفيذ ولن يحذف بياناتك الموجودة."
-                                        : "هذا السكربت مخصص لإضافة ميزة التحقق من رقم الجوال عبر OTP. قم بتشغيله إذا كنت قد قمت بإعداد قاعدة البيانات سابقاً وتريد إضافة هذه الميزة فقط."}
+                                <p className="text-sm text-amber-700">
+                                    تنبيه هام: الخطأ الذي ظهر لك سابقاً (42501) يعني أنك لا تملك صلاحية تعديل إعدادات التخزين. تم تعديل السكربت لتجاوز هذا الخطأ والتركيز على إصلاح حسابك.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <label className="block text-sm font-medium text-gray-700">كود SQL:</label>
-                            <CopyButton textToCopy={activeTab === 'full' ? unifiedScript : mobileVerificationScript} />
-                        </div>
-                        <div className="relative">
-                            <textarea 
-                                readOnly 
-                                className="w-full h-64 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-inner"
-                                value={activeTab === 'full' ? unifiedScript : mobileVerificationScript}
-                            />
-                        </div>
-                    </div>
+                    <p className="mb-4 text-gray-700 font-medium">
+                        لإصلاح المشكلة، يرجى تنفيذ الخطوات التالية بدقة:
+                    </p>
 
-                    <div className="space-y-4 border-t pt-4">
-                        <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                            <ShieldCheckIcon className="w-5 h-5 text-green-600"/>
-                            تعليمات التنفيذ:
-                        </h3>
-                        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border">
-                            <li>انسخ الكود البرمجي أعلاه باستخدام زر "نسخ".</li>
-                            <li>اذهب إلى لوحة تحكم مشروعك في <strong>Supabase</strong>.</li>
-                            <li>انتقل إلى قسم <strong>SQL Editor</strong> من القائمة الجانبية.</li>
-                            <li>انقر على <strong>New query</strong> والصق الكود المنسوخ.</li>
-                            <li>اضغط على زر <strong>Run</strong> لتنفيذ السكربت.</li>
-                            <li>بعد ظهور رسالة "Success"، عد إلى هنا واضغط على زر <strong>إعادة المحاولة</strong> أو قم بتحديث الصفحة.</li>
-                        </ol>
+                    <ol className="list-decimal list-inside space-y-4 text-sm text-gray-600 mb-6">
+                        <li className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-center mb-2">
+                                <strong className="text-gray-900">انسخ كود SQL الجديد (تم تحديثه):</strong>
+                                <CopyButton textToCopy={unifiedScript} />
+                            </div>
+                            <div className="relative">
+                                <pre className="bg-gray-800 text-green-400 p-3 rounded border border-gray-700 overflow-x-auto text-xs font-mono h-32" dir="ltr">
+                                    {unifiedScript}
+                                </pre>
+                            </div>
+                        </li>
+                        <li>
+                            اذهب إلى <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">لوحة تحكم Supabase</a>.
+                        </li>
+                        <li>
+                            افتح <strong>SQL Editor</strong> من القائمة الجانبية (أيقونة الورقة والقلم).
+                        </li>
+                        <li>
+                            اضغط على <strong>New Query</strong> والصق الكود الذي نسخته في الخطوة 1.
+                        </li>
+                        <li>
+                            اضغط على زر <strong>Run</strong> (أسفل يمين الشاشة).
+                        </li>
+                        <li>
+                            بعد ظهور رسالة "Success" في Supabase، عد إلى هنا واضغط على زر "إعادة المحاولة".
+                        </li>
+                    </ol>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 flex items-start gap-2">
+                        <ShieldCheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <strong>ملاحظة:</strong> هذا السكربت آمن ولن يحذف أي بيانات موجودة. سيقوم فقط بإنشاء الجداول المفقودة وإصلاح ملفك الشخصي.
+                        </div>
                     </div>
+                </div>
+
+                <div className="mt-6 flex justify-end pt-4 border-t">
+                    <button
+                        onClick={onRetry}
+                        className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                    >
+                        إعادة المحاولة
+                    </button>
                 </div>
             </div>
         </div>

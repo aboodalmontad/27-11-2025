@@ -141,7 +141,7 @@ const Navbar: React.FC<{
                     <div className="flex flex-col items-start sm:flex-row sm:items-baseline gap-0 sm:gap-2">
                         <h1 className="text-xl font-bold text-gray-800">مكتب المحامي</h1>
                         <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <span>الإصدار: 27-11-2025-4</span>
+                            <span>الإصدار: 27-11-2025-3</span>
                             {profile && (
                                 <>
                                     <span className="mx-1 text-gray-300">|</span>
@@ -459,6 +459,7 @@ const App: React.FC<AppProps> = ({ onRefresh }) => {
             });
             
             // 2. Immediately update state to show Login Page and hide Loader
+            // This prevents the "blank page" look while the browser is reloading
             setSession(null);
             setIsAuthLoading(false);
 
@@ -467,8 +468,8 @@ const App: React.FC<AppProps> = ({ onRefresh }) => {
         } catch (error) {
             console.warn("Logout network failed, state cleared anyway:", error);
         } finally {
-            // 4. Force redirection to root path to avoid "Moved/Deleted" errors on sub-routes
-            window.location.href = '/';
+            // 4. Force a hard reload to clear any in-memory state and caches
+            window.location.reload();
         }
     };
     

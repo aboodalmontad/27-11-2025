@@ -487,12 +487,16 @@ const LoginPage: React.FC<AuthPageProps> = ({ onForceSetup, onLoginSuccess, init
                 
                 <div className="mt-4 flex flex-col items-center">
                     <p className="text-center text-xs text-gray-500">كافة الحقوق محفوظة لشركة الحلول الرقمية Digital Solutions</p>
-                    <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-gray-400">الإصدار: 27-11-2025-4</p>
-                        <button onClick={onForceSetup} className="text-xs text-gray-300 hover:text-gray-500" title="إعداد النظام">
-                            <DatabaseIcon className="w-3 h-3" />
-                        </button>
-                    </div>
+                    <p className="text-xs text-gray-400 mt-1">الإصدار: 27-11-2025-3</p>
+                    
+                    <button 
+                        onClick={onForceSetup} 
+                        className="mt-3 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-blue-50 hover:text-blue-700 rounded-full transition-colors border border-gray-200 shadow-sm" 
+                        title="إعداد أو إصلاح قاعدة البيانات"
+                    >
+                        <DatabaseIcon className="w-4 h-4" />
+                        <span>معالجة قاعدة البيانات</span>
+                    </button>
                 </div>
             </div>
         </div>
